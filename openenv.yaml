@@ -1,0 +1,253 @@
+# spec_version: 1
+# name: cyber_defense
+# display_name: Adaptive Cyber Defense
+# type: space
+# runtime: fastapi
+# app: cyber_defense.server.app:app
+# port: 8000
+# tags:
+#   - openenv                    # ← MANDATORY for HF Space tagging
+# tasks:
+#   - name: easy_breach_prevention
+#     difficulty: easy
+#   - name: medium_detection_balance  
+#     difficulty: medium
+#   - name: hard_stealth_defense
+#     difficulty: hard
+# observation_space:
+#   type: object
+#   description: "Noisy signals from network monitoring"
+# action_space:
+#   type: categorical
+#   description: "Defensive actions: monitor, isolate, block, escalate, do_nothing"
+
+
+spec_version: 1
+
+name: cyber_defense
+display_name: Adaptive Cyber Defense
+description: >
+  A real-world Security Operations Center (SOC) decision environment.
+  An AI agent observes noisy network monitoring signals and must choose
+  defensive actions to prevent system compromise by an adversarial attacker.
+  Models the core challenge of delayed human response that underlies 95% of
+  real-world security breaches. Supports RL-vs-RL self-play: the attacker is
+  an FSM that adapts its strategy based on defender behaviour.
+
+type: space
+runtime: fastapi
+app: cyber_defense.server.app:app
+port: 8000
+
+tags:
+  - openenv
+  - cybersecurity
+  - reinforcement-learning
+  - soc
+  - adversarial
+
+# ---------------------------------------------------------------------------
+# Tasks
+# ---------------------------------------------------------------------------
+tasks:
+  - name: easy_breach_prevention
+    difficulty: easy
+    description: >
+      Fixed deterministic attacker. No noise injection. 10-step episode.
+      Agent must keep attack_stage below 5 (full breach).
+      Success threshold: score >= 0.60.
+    max_steps: 10
+    attacker_type: fixed
+    noise_rate: 0.0
+    partial_observability: false
+    success_threshold: 0.60
+
+  - name: medium_detection_balance
+    difficulty: medium
+    description: >
+      Adaptive attacker that switches strategy at step 10.
+      20% false-positive signal noise injected into observations.
+      Agent must balance detection recall vs. false-positive rate.
+      Success threshold: score >= 0.45.
+    max_steps: 20
+    attacker_type: adaptive
+    noise_rate: 0.20
+    partial_observability: false
+    success_threshold: 0.45
+
+  - name: hard_stealth_defense
+    difficulty: hard
+    description: >
+      Multi-stage stealthy attacker using a random policy with retreats.
+      40% noise. Partial observability: lateral_movement_flag is hidden.
+      Agent must detect and stop attack before stage 4 (silent breach).
+      Success threshold: score >= 0.30.
+    max_steps: 30
+    attacker_type: stealth
+    noise_rate: 0.40
+    partial_observability: true
+    success_threshold: 0.30
+
+  - name: zero_day_detection
+    difficulty: hard
+    description: >
+      Pure zero-day scenario. All standard IDS signals are suppressed from step 4-8.
+      Agent must detect attack via anomaly_trend (rising pattern) and packet_entropy
+      (unusual packet size distribution). Tests temporal reasoning and non-standard
+      signal interpretation. Most challenging task.
+      Success threshold: score >= 0.35.
+    max_steps: 25
+    attacker_type: zero_day
+    noise_rate: 0.30
+    partial_observability: true
+    success_threshold: 0.35
+
+# ---------------------------------------------------------------------------
+# Observation space
+# ---------------------------------------------------------------------------
+observation_space:
+  type: object
+  description: >
+    Noisy signals from the network monitoring layer. Does NOT reveal the true
+    hidden attack stage — the agent must infer from partial, noisy signals.
+  properties:
+    login_failure_rate:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: Normalised failed login rate.
+    port_scan_detected:
+      type: boolean
+      description: True if a port scan was detected this step.
+    cpu_spike:
+      type: boolean
+      description: True if anomalous CPU usage was recorded.
+    network_anomaly_score:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: Composite network anomaly score.
+    lateral_movement_flag:
+      type: boolean
+      description: >
+        True if suspicious east-west traffic was observed. Always False
+        in hard_stealth_defense (partial observability).
+    alert_count:
+      type: integer
+      minimum: 0
+      maximum: 10
+      description: Number of IDS/IPS alerts fired this step.
+    false_signal_injected:
+      type: boolean
+      description: >
+        True if a synthetic noise event was injected. Visible in Easy only;
+        always False in Medium/Hard.
+    scrutiny_active:
+      type: boolean
+      description: True if escalate is in effect, reducing signal noise by 50%.
+    steps_remaining:
+      type: integer
+      minimum: 0
+      description: Steps remaining in the episode.
+    anomaly_trend:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: >
+        Rate of change in anomaly score over last 3 steps. Key zero-day indicator —
+        rises even when absolute anomaly score remains low. Critical in hard/zero-day tasks.
+    packet_entropy:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: >
+        Normalised entropy of network packet sizes. Zero-day attacks use non-standard
+        protocols producing unusual packet distributions. Rises 0.3→0.85 over 6 steps.
+    consecutive_escalates:
+      type: integer
+      minimum: 0
+      description: >
+        Escalate actions taken in a row. When >= 2, further escalation costs -0.06
+        per use. Agent should commit to block/isolate after 2 consecutive escalates.
+    last_action:
+      type: string
+      description: Echo of the last action taken, or "none" at reset.
+    task_name:
+      type: string
+      description: Active task identifier.
+
+# ---------------------------------------------------------------------------
+# Action space
+# ---------------------------------------------------------------------------
+action_space:
+  type: categorical
+  description: >
+    Defensive actions available to the agent. Exactly one action must be
+    chosen per step.
+  values:
+    - name: monitor
+      description: Observe without intervention. No reward, no false-positive cost.
+    - name: isolate
+      description: >
+        Quarantine the suspected host. Stops active attack if correct (+0.30).
+        High false-positive penalty (-0.15) if host is benign.
+    - name: block
+      description: >
+        Block traffic at firewall. Partially slows attack (+0.15 if correct).
+        Medium false-positive penalty (-0.10) if benign.
+    - name: escalate
+      description: >
+        Flag for human review. Activates scrutiny (halves noise) for 2 steps.
+        No direct false-positive penalty.
+    - name: do_nothing
+      description: >
+        Explicit inaction. Penalised (-0.05) if an attack is currently active.
+
+# ---------------------------------------------------------------------------
+# Reward shaping
+# ---------------------------------------------------------------------------
+reward:
+  type: continuous
+  range: [-0.80, +0.55]
+  description: >
+    Dense shaped reward on every step — never sparse. Signal on every
+    transition ensures the agent receives useful gradient throughout the
+    episode, not just at breach or success boundaries.
+    Missed-attack penalty is stage-proportional: advancing stage 4→5 costs
+    more than 1→2, teaching the RL agent to prioritise high-stage blocks.
+  components:
+    correct_isolate:          +0.40   # Full stop — attack_stage → 0
+    correct_block:            +0.25   # Partial stop — stage decremented
+    early_detection_bonus:    +0.15   # Applied when stage <= 2 at time of action
+    false_positive_isolate:   -0.12
+    false_positive_block:     -0.08
+    monitor_passive:          -0.10   # Monitor while attack_stage > 0
+    do_nothing_penalty:       -0.18   # do_nothing while attack_stage > 0
+    missed_attack_base:       -0.10   # × (0.5 + 0.5×stage/5) — stage proportional
+    escalate_while_active:    -0.06   # Escalate while attack is present (after first use)
+    escalate_repeated:        -0.06   # Additional per escalate when consecutive >= 2
+    breach_penalty:           -0.80   # Terminal: attack reached stage 5
+    success_bonus:            +0.50   # Terminal: survived all steps × intervention_quality
+
+# ---------------------------------------------------------------------------
+# Environment metadata
+# ---------------------------------------------------------------------------
+environment:
+  concurrent_sessions: 4
+  deterministic: true
+  rng_strategy: per_instance_seed
+  seeds:
+    easy_breach_prevention: 42
+    medium_detection_balance: 137
+    hard_stealth_defense: 271
+    zero_day_detection: 999
+  signal_scaling:
+    enabled: true
+    login_range: [0.80, 1.20]
+    anomaly_range: [0.80, 1.20]
+    alerts_range: [0.85, 1.15]
+    retreat_cap_range: [1, 3]
+    purpose: >
+      Per-episode scale factors drawn from RNG at reset(). Prevents RL agents
+      from memorizing fixed thresholds (e.g. login≈0.52 always means stage 2).
+      Forces multi-signal pattern recognition. 4× more variance than jitter alone.
