@@ -423,4 +423,4 @@ Per-episode signal scaling (±20%) prevents threshold memorisation and requires 
 
 ## Safety
 
-This environment simulates behavioral network signals only. It does not generate, store, or transmit real attack code, real exploits, actual credentials, or any information that could be used to perform a real intrusion. All signal values are synthetic, derived from published academic datasets (NSL-KDD, CICIDS) for research purposes.
+This environment simulates behavioral network signals only. It does not generate, store, or transmit real attack code, real exploits, actual credentials, or any information that could be used to perform a real intrusion. 
