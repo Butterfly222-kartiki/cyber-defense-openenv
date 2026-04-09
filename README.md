@@ -283,26 +283,6 @@ The inference script (`inference.py`) emits structured stdout logs parsed by the
 
 ---
 
-## Baseline Scores
-
-Scores produced by the rule-based fallback agent (minimum baseline — LLM agent should score at least this well).
-
-| Task | Score | Steps | Status |
-|------|-------|-------|--------|
-| easy\_breach\_prevention | 1.000 | 10 | PASS |
-| medium\_detection\_balance | 0.867 | 20 | PASS |
-| hard\_stealth\_defense | 0.807 | 30 | PASS |
-| zero\_day\_detection | 0.912 | 25 | PASS |
-
-Scores above use the rule-based fallback agent (72B model or better). With a
-smaller model (7B), the escalate-loop prevention in `inference.py` ensures the
-fallback rule engine takes over after 2 consecutive escalates, giving scores in
-the range 0.55–0.90 across all tasks.
-
-Scores are deterministic with fixed seeds (42, 137, 271, 999). Running `python inference.py` with the same seed configuration reproduces these exactly.
-
----
-
 ## Project Structure
 
 ```
